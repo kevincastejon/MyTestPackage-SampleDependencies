@@ -1,0 +1,28 @@
+{
+  "name": "my-test-package-samples-dependencies",
+  "version": "0.0.1",
+  "displayName": "My Test Package - Samples Dependencies",
+  "description": "A package for samples dependencies testing purpose.",
+  "dependencies": {
+  },
+  "samples":  [
+                    {
+                        "displayName":  "A",
+                        "description":  "Sample A",
+                        "path":  "Samples~/A"
+                    },
+                    {
+                        "displayName":  "B",
+                        "description":  "Sample B",
+                        "path":  "Samples~/B"
+                    }
+                ],
+
+  "author": {
+    "name": "Kevin Castejon",
+    "email": "castejonkevin@gmail.com",
+    "url": "http://www.kevincastejon.fr/"
+  },
+  "type": "library",
+  "hideInEditor": false
+}

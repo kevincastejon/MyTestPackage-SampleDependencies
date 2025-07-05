@@ -13,9 +13,9 @@ using UnityEngine;
 namespace kevincastejon.test.package.samples.dependencies
 {
     [InitializeOnLoad]
-    public class SamplesDependenciesManager
-    {
-        static SamplesDependenciesManager()
+    public class SamplesDependenciesChecker
+    { 
+        static SamplesDependenciesChecker()
         {
             string packageName = GetPackageNameOfThisScript();
             string packageVersion = GetInstalledVersion(packageName);
@@ -56,18 +56,20 @@ namespace kevincastejon.test.package.samples.dependencies
             foreach (Sample sample in samples)
             {
                 if (!sample.isImported)
-                    continue;
-
-                SampleModel sampleModel = packageJSONModel.Samples.FirstOrDefault(x => x.DisplayName == sample.displayName);
-                if (sampleModel?.SampleDependencies == null)
-                    continue;
-
-                foreach (SampleDependencyModel sampleDependency in sampleModel.SampleDependencies)
                 {
-                    if (string.IsNullOrEmpty(sampleDependency.Package) || sampleDependency.Package == packageName)
+                    continue;
+                }
+                SampleModel sampleModel = packageJSONModel.Samples.FirstOrDefault(x => x.DisplayName == sample.displayName);
+                if (sampleModel != null) // Normally impossible
+                {
+                    if (sampleModel.SampleDependencies == null)
                     {
-                        int depIndex = samples.FindIndex(x => x.displayName == sampleDependency.Sample);
-                        if (depIndex != -1)
+                        continue;
+                    }
+                    foreach (string sampleDependency in sampleModel.SampleDependencies)
+                    {
+                        int depIndex = samples.FindIndex(x => x.displayName == sampleDependency);
+                        if (depIndex != -1) // Normally impossible
                         {
                             Sample s = samples[depIndex];
                             if (!s.isImported)
@@ -76,28 +78,8 @@ namespace kevincastejon.test.package.samples.dependencies
                             }
                         }
                     }
-                    else 
-                    {
-                        string otherPackage = sampleDependency.Package;
-                        string installedVersion = GetInstalledVersion(otherPackage);
-
-                        if (installedVersion == null)
-                        {
-                            
-                            InstallPackage(otherPackage, () =>
-                            {
-                                ImportSampleFromPackage(otherPackage, sampleDependency.Sample);
-                                AssetDatabase.Refresh();
-                            });
-                        }
-                        else
-                        {
-                            ImportSampleFromPackage(otherPackage, sampleDependency.Sample);
-                        }
-                    }
                 }
             }
-
             if (missingSamples.Count == 0)
             {
                 return;
@@ -107,7 +89,7 @@ namespace kevincastejon.test.package.samples.dependencies
             {
                 Sample depSample = samplePair.Key;
                 Sample baseSample = samplePair.Value;
-                message.AppendLine("- " + depSample.displayName + " (dependency of " + baseSample.displayName + ")\n"); 
+                message.AppendLine("- " + depSample.displayName + " (dependency of " + baseSample.displayName + ")");
             }
             message.AppendLine("Do you want to import these samples ?");
             bool install = EditorUtility.DisplayDialog(packageName + " sample dependencies manager", message.ToString(), "Ok", "No");
@@ -128,45 +110,10 @@ namespace kevincastejon.test.package.samples.dependencies
             EditorApplication.update -= OneShotFrameWaiter;
             AssetDatabase.Refresh();
         }
-        private static void InstallPackage(string packageName, Action onInstalled = null)
-        {
-            var addRequest = Client.Add(packageName);
-            EditorApplication.update += () =>
-            {
-                if (addRequest.IsCompleted)
-                {
-                    if (addRequest.Status == StatusCode.Success)
-                    {
-                        Debug.Log($"Package {packageName} installed successfully.");
-                        onInstalled?.Invoke();
-                    }
-                    else
-                    {
-                        Debug.LogError($"Failed to install package {packageName}: {addRequest.Error.message}");
-                    }
-                    EditorApplication.update -= null;
-                }
-            };
-        }
-        private static void ImportSampleFromPackage(string packageName, string sampleDisplayName)
-        {
-            string version = GetInstalledVersion(packageName);
-            var samples = Sample.FindByPackage(packageName, version);
-            foreach (var s in samples)
-            {
-                if (s.displayName == sampleDisplayName && !s.isImported)
-                {
-                    s.Import(Sample.ImportOptions.OverridePreviousImports);
-                    Debug.Log($"Sample '{sampleDisplayName}' from package '{packageName}' has been imported.");
-                    return;
-                }
-            }
-            Debug.LogWarning($"Sample '{sampleDisplayName}' not found in package '{packageName}'.");
-        }
 
-        private static string GetPackageNameOfThisScript()
+        public static string GetPackageNameOfThisScript()
         {
-            var script = MonoScript.FromScriptableObject(ScriptableObject.CreateInstance<SamplesDependenciesManagerReference>());
+            var script = MonoScript.FromScriptableObject(ScriptableObject.CreateInstance<SamplesDependenciesManager>());
             string scriptPath = AssetDatabase.GetAssetPath(script);
 
             if (scriptPath.StartsWith("Packages/"))
@@ -177,7 +124,7 @@ namespace kevincastejon.test.package.samples.dependencies
             }
             return null;
         }
-        private static string GetInstalledVersion(string packageName)
+        public static string GetInstalledVersion(string packageName)
         {
             var listRequest = Client.List(true);
             while (!listRequest.IsCompleted) { }
@@ -198,7 +145,7 @@ namespace kevincastejon.test.package.samples.dependencies
             }
             return null;
         }
-        private static string GetResolvedPath(string packageName)
+        public static string GetResolvedPath(string packageName)
         {
             var list = Client.List(true);
             while (!list.IsCompleted) { }
@@ -210,7 +157,7 @@ namespace kevincastejon.test.package.samples.dependencies
             }
             return null;
         }
-        private static string ReadPackageJson(string packageName)
+        public static string ReadPackageJson(string packageName)
         {
             string path = GetResolvedPath(packageName);
             path = Path.Combine(path, "package.json");
@@ -231,11 +178,9 @@ namespace kevincastejon.test.package.samples.dependencies
     class SampleModel
     {
         public string DisplayName;
-        public SampleDependencyModel[] SampleDependencies { get; set; }
+        public string[] SampleDependencies { get; set; }
     }
-    class SampleDependencyModel
+    public class SamplesDependenciesManager : ScriptableObject 
     {
-        public string Package { get; set; }
-        public string Sample { get; set; }
     }
 }

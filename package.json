@@ -16,10 +16,7 @@
       "description": "Sample B",
       "path": "Samples~/B",
       "sampleDependencies": [
-        {
-          "package": "my-test-package-samples-dependencies",
-          "sample": "A"
-        }
+        "A"
       ]
     },
     {
@@ -27,12 +24,10 @@
       "description": "Sample C",
       "path": "Samples~/C",
       "sampleDependencies": [
-        {
-          "package": "my-test-package-samples-dependencies",
-          "sample": "B"
-        }
+        "B",
+        "A"
       ]
-    } 
+    }
   ],
   "author": {
     "name": "Kevin Castejon",

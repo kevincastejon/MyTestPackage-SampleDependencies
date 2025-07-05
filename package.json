@@ -5,19 +5,24 @@
   "description": "A package for samples dependencies testing purpose.",
   "dependencies": {
   },
-  "samples":  [
-                    {
-                        "displayName":  "A",
-                        "description":  "Sample A",
-                        "path":  "Samples~/A"
-                    },
-                    {
-                        "displayName":  "B",
-                        "description":  "Sample B",
-                        "path":  "Samples~/B"
-                    }
-                ],
-
+  "samples": [
+    {
+      "displayName": "A",
+      "description": "Sample A",
+      "path": "Samples~/A"
+    },
+    {
+      "displayName": "B",
+      "description": "Sample B",
+      "path": "Samples~/B",
+      "sampleDependencies": [
+        {
+          "package": "my-test-package-samples-dependencies",
+          "sample": "A"
+        }
+      ]
+    }
+  ],
   "author": {
     "name": "Kevin Castejon",
     "email": "castejonkevin@gmail.com",

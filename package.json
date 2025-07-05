@@ -21,7 +21,18 @@
           "sample": "A"
         }
       ]
-    }
+    },
+    {
+      "displayName": "C",
+      "description": "Sample C",
+      "path": "Samples~/C",
+      "sampleDependencies": [
+        {
+          "package": "my-test-package-samples-dependencies",
+          "sample": "B"
+        }
+      ]
+    } 
   ],
   "author": {
     "name": "Kevin Castejon",

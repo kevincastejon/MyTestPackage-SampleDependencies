@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -36,10 +37,12 @@ namespace kevincastejon.test.package.samples.dependencies
 
             foreach (Sample sample in samples)
             {
+                int ind = sample.importPath.IndexOf("Assets/Samples");
+                ind = ind == -1 ? sample.importPath.IndexOf("Assets\\Samples") : ind;
                 if (sample.isImported)
                 {
                     defsToAdd.Add(packageName.Replace('-', '_').ToUpper() + "___SAMPLE___IMPORTED___" + sample.displayName.Replace(" ", "").ToUpper());
-                } 
+                }
             }
             foreach (string def in defsToRemove)
             {
@@ -53,20 +56,18 @@ namespace kevincastejon.test.package.samples.dependencies
             foreach (Sample sample in samples)
             {
                 if (!sample.isImported)
-                {
                     continue;
-                }
+
                 SampleModel sampleModel = packageJSONModel.Samples.FirstOrDefault(x => x.DisplayName == sample.displayName);
-                if (sampleModel != null) // Normally impossible
+                if (sampleModel?.SampleDependencies == null)
+                    continue;
+
+                foreach (SampleDependencyModel sampleDependency in sampleModel.SampleDependencies)
                 {
-                    if (sampleModel.SampleDependencies == null)
-                    {
-                        continue;
-                    }
-                    foreach (SampleDependencyModel sampleDependency in sampleModel.SampleDependencies)
+                    if (string.IsNullOrEmpty(sampleDependency.Package) || sampleDependency.Package == packageName)
                     {
                         int depIndex = samples.FindIndex(x => x.displayName == sampleDependency.Sample);
-                        if (depIndex != -1) // Normally impossible
+                        if (depIndex != -1)
                         {
                             Sample s = samples[depIndex];
                             if (!s.isImported)
@@ -75,21 +76,41 @@ namespace kevincastejon.test.package.samples.dependencies
                             }
                         }
                     }
+                    else 
+                    {
+                        string otherPackage = sampleDependency.Package;
+                        string installedVersion = GetInstalledVersion(otherPackage);
+
+                        if (installedVersion == null)
+                        {
+                            
+                            InstallPackage(otherPackage, () =>
+                            {
+                                ImportSampleFromPackage(otherPackage, sampleDependency.Sample);
+                                AssetDatabase.Refresh();
+                            });
+                        }
+                        else
+                        {
+                            ImportSampleFromPackage(otherPackage, sampleDependency.Sample);
+                        }
+                    }
                 }
             }
+
             if (missingSamples.Count == 0)
             {
                 return;
             }
-            StringBuilder message = new("The following samples are missing : ");
+            StringBuilder message = new("The following samples are missing : \n");
             foreach (var samplePair in missingSamples)
             {
                 Sample depSample = samplePair.Key;
                 Sample baseSample = samplePair.Value;
-                message.AppendLine("- " + depSample + " (dependency of " + baseSample + ")");
+                message.AppendLine("- " + depSample.displayName + " (dependency of " + baseSample.displayName + ")\n"); 
             }
             message.AppendLine("Do you want to import these samples ?");
-            bool install = EditorUtility.DisplayDialog(packageName + " sample dependencies manager", message.ToString(), "Ok", "Uninstall");
+            bool install = EditorUtility.DisplayDialog(packageName + " sample dependencies manager", message.ToString(), "Ok", "No");
             if (install)
             {
                 foreach (var samplePair in missingSamples)
@@ -98,26 +119,65 @@ namespace kevincastejon.test.package.samples.dependencies
                     depSample.Import(Sample.ImportOptions.OverridePreviousImports);
                     Debug.Log(depSample.displayName + " has been imported.");
                 }
-                AssetDatabase.Refresh();
+                EditorApplication.update += OneShotFrameWaiter;
             }
         }
-        public static string GetPackageNameOfThisScript()
+
+        private static void OneShotFrameWaiter()
+        {
+            EditorApplication.update -= OneShotFrameWaiter;
+            AssetDatabase.Refresh();
+        }
+        private static void InstallPackage(string packageName, Action onInstalled = null)
+        {
+            var addRequest = Client.Add(packageName);
+            EditorApplication.update += () =>
+            {
+                if (addRequest.IsCompleted)
+                {
+                    if (addRequest.Status == StatusCode.Success)
+                    {
+                        Debug.Log($"Package {packageName} installed successfully.");
+                        onInstalled?.Invoke();
+                    }
+                    else
+                    {
+                        Debug.LogError($"Failed to install package {packageName}: {addRequest.Error.message}");
+                    }
+                    EditorApplication.update -= null;
+                }
+            };
+        }
+        private static void ImportSampleFromPackage(string packageName, string sampleDisplayName)
+        {
+            string version = GetInstalledVersion(packageName);
+            var samples = Sample.FindByPackage(packageName, version);
+            foreach (var s in samples)
+            {
+                if (s.displayName == sampleDisplayName && !s.isImported)
+                {
+                    s.Import(Sample.ImportOptions.OverridePreviousImports);
+                    Debug.Log($"Sample '{sampleDisplayName}' from package '{packageName}' has been imported.");
+                    return;
+                }
+            }
+            Debug.LogWarning($"Sample '{sampleDisplayName}' not found in package '{packageName}'.");
+        }
+
+        private static string GetPackageNameOfThisScript()
         {
             var script = MonoScript.FromScriptableObject(ScriptableObject.CreateInstance<SamplesDependenciesManagerReference>());
             string scriptPath = AssetDatabase.GetAssetPath(script);
 
-
             if (scriptPath.StartsWith("Packages/"))
             {
-
                 string[] parts = scriptPath.Split('/');
                 if (parts.Length >= 2)
                     return parts[1];
             }
-
             return null;
         }
-        public static string GetInstalledVersion(string packageName)
+        private static string GetInstalledVersion(string packageName)
         {
             var listRequest = Client.List(true);
             while (!listRequest.IsCompleted) { }
@@ -136,10 +196,9 @@ namespace kevincastejon.test.package.samples.dependencies
             {
                 Debug.LogError("Failed to get package list: " + listRequest.Error.message);
             }
-
             return null;
         }
-        public static string GetResolvedPath(string packageName)
+        private static string GetResolvedPath(string packageName)
         {
             var list = Client.List(true);
             while (!list.IsCompleted) { }
@@ -149,10 +208,9 @@ namespace kevincastejon.test.package.samples.dependencies
                 if (pkg.name == packageName)
                     return pkg.resolvedPath;
             }
-
             return null;
         }
-        public static string ReadPackageJson(string packageName)
+        private static string ReadPackageJson(string packageName)
         {
             string path = GetResolvedPath(packageName);
             path = Path.Combine(path, "package.json");
@@ -161,7 +219,6 @@ namespace kevincastejon.test.package.samples.dependencies
                 Debug.LogError($"[PackageJsonReader] package.json not found at path: {path}");
                 return null;
             }
-
             return File.ReadAllText(path);
         }
     }
